@@ -1,16 +1,16 @@
-import { Router } from 'express';
-import ctl from '../controllers';
-import { validateData } from '../middlewares';
-import { userRegistrationSchema, userLoginSchema } from '../schemas';
+import { Router } from "express";
+import ctl from "../controllers";
+import { validateData } from "../middlewares";
+import { userRegistrationSchema, userLoginSchema } from "../schemas";
 
 const router = Router();
 
 router.post(
-  '/register',
+  "/register",
   validateData(userRegistrationSchema),
   ctl.registerUser
 );
 
-router.post('/login', validateData(userLoginSchema), ctl.loginUser);
+router.post("/login", validateData(userLoginSchema), ctl.loginUser);
 
 export default router;

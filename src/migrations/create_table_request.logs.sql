@@ -1,0 +1,6 @@
+CREATE TABLE request_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    route VARCHAR(255),
+    user_id INT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
