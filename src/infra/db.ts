@@ -1,9 +1,9 @@
 import mysql, { PoolOptions } from "mysql2/promise";
 
-const access: PoolOptions = {
+const options: PoolOptions = {
   user: "root",
   password: "secret",
   database: "mydb",
 };
 
-export const conn = mysql.createPool(access);
+export default mysql.createPool(options);

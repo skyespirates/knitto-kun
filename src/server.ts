@@ -2,19 +2,19 @@ import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import logger from "./utils/logger";
 import jwt from "jsonwebtoken";
-import authRoutes from "./routes";
+import authRoutes from "./routes/auth";
 import { sendErrorResponse, sendSuccessResponse } from "./utils/base-response";
-import { conn } from "./infra/db";
+import poll from "./infra/db";
 import { Counter, OTP, RequestPerHour, User } from "./types";
 import client from "./utils/axios";
 import cron from "node-cron";
-import { logRequest } from "./middlewares";
+import { logRequest, authenticateJWT } from "./middlewares";
 
 const app = express();
 const port = 3000;
 
 app.use((req: Request, res: Response, next: NextFunction) => {
-  logger.info(`${req.method} ${req.url}`);
+  logger.info(`${req.method} ${req.url} ${req.path}`);
   res.on("finish", () => {
     logger.info(`${req.method} ${res.statusCode} ${req.url}`);
   });
@@ -32,20 +32,6 @@ if (!process.env.JWT_SECRET) {
 const secretKey = process.env.JWT_SECRET;
 
 // Middleware to verify JWT
-const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
-  const token = req.header("Authorization")?.split(" ")[1];
-  if (token) {
-    jwt.verify(token, secretKey, (err, user) => {
-      if (err) {
-        return res.sendStatus(403);
-      }
-      req.user = user;
-      next();
-    });
-  } else {
-    res.sendStatus(401);
-  }
-};
 
 // Login route to generate JWT
 app.post("/login", (req: Request, res: Response) => {
@@ -83,71 +69,8 @@ app.post("/api/items", authenticateJWT, (req: Request, res: Response) => {
   res.status(201).json({ message: "Item created", item: newItem });
 });
 
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-app.post("/otp/generate", async (req, res) => {
-  const { email } = req.body;
-
-  try {
-    const [rows] = await conn.execute<User[]>(
-      "SELECT * FROM users where email = ?",
-      [email]
-    );
-    if (rows.length == 0) {
-      sendErrorResponse(res, "email not found");
-      return;
-    }
-
-    const user_id = rows[0].id;
-    const kode_otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    await conn.execute(
-      "INSERT INTO otp_codes (user_id, otp_code, expires_at) VALUES (?, ?, ?)",
-      [user_id, kode_otp, expiresAt]
-    );
-
-    sendSuccessResponse(res, "OTP sent", { otp: kode_otp });
-  } catch (error) {
-    sendErrorResponse(res, "failed to generate otp");
-  }
-});
-
-app.post("/otp/verify", async (req, res) => {
-  const { email, otp_code } = req.body;
-
-  try {
-    const [users] = await conn.execute<User[]>(
-      "SELECT * FROM users WHERE email = ?",
-      [email]
-    );
-    if (users.length == 0) {
-      sendErrorResponse(res, "email not found");
-      return;
-    }
-    const [otp] = await conn.execute<OTP[]>(
-      "SELECT * FROM otp_codes WHERE user_id = ? AND otp_code = ? and expires_at < NOW() and used = 0 ORDER BY id LIMIT 1",
-      [users[0].id, otp_code]
-    );
-    if (otp.length == 0) {
-      sendErrorResponse(res, "wrong otp");
-      return;
-    }
-
-    await conn.execute("UPDATE otp_codes SET used = 1 WHERE id = ?", [
-      otp[0].id,
-    ]);
-
-    sendSuccessResponse(res, "otp verified successfully");
-  } catch (error) {
-    sendErrorResponse(res, "failed to verify otp");
-  }
-});
-
 app.get("/runner", async (req, res) => {
-  const con = await conn.getConnection();
+  const con = await poll.getConnection();
   try {
     await con.beginTransaction();
 
@@ -210,7 +133,7 @@ app.get("/request-per-hour", async (req, res) => {
       GROUP BY hour
       ORDER BY hour DESC
     `;
-    const [rows] = await conn.execute<RequestPerHour[]>(query);
+    const [rows] = await poll.execute<RequestPerHour[]>(query);
     sendSuccessResponse(res, "request per hour", { rows });
   } catch (error) {
     sendErrorResponse(res, "an error occured");

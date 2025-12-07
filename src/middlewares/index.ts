@@ -2,8 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { z, ZodError } from "zod";
 
 import { StatusCodes } from "http-status-codes";
-import { conn } from "../infra/db";
+import pool from "../infra/db";
 import { sendErrorResponse } from "../utils/base-response";
+import jwt from "jsonwebtoken";
 
 export function validateData(schema: z.ZodObject<any, any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -27,13 +28,37 @@ export function validateData(schema: z.ZodObject<any, any>) {
   };
 }
 
+export function authenticateJWT(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const secret_key = process.env.JWT_SECRET;
+  if (!secret_key) {
+    throw new Error("JWT_SECRET is not set");
+  }
+  const token = req.header("Authorization")?.split(" ")[1];
+  if (token) {
+    jwt.verify(token, secret_key, (err, user) => {
+      if (err) {
+        sendErrorResponse(res, "invalid token", 401);
+        return;
+      }
+      req.user = user;
+      next();
+    });
+  } else {
+    sendErrorResponse(res, "invalid token", 401);
+  }
+}
+
 export async function logRequest(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    await conn.execute("INSERT INTO request_logs (route) VALUES (?)", [
+    await pool.execute("INSERT INTO request_logs (route) VALUES (?)", [
       req.path,
     ]);
   } catch (error) {

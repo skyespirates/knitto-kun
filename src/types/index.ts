@@ -23,3 +23,8 @@ export interface RequestPerHour extends RowDataPacket {
   hour: string;
   total_request: number;
 }
+
+export interface TokenPayload {
+  id: number;
+  email: string;
+}
