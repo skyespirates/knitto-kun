@@ -15,11 +15,6 @@ function generateToken(payload: TokenPayload) {
   return jwt.sign(payload, secret, { expiresIn: expiresIn });
 }
 
-function verifyToken() {
-  jwt.verify;
-}
-
 export default {
   generateToken,
-  verifyToken,
 };

@@ -2,9 +2,10 @@ import { Request, Response, NextFunction } from "express";
 import { z, ZodError } from "zod";
 
 import { StatusCodes } from "http-status-codes";
-import pool from "../infra/db";
 import { sendErrorResponse } from "../utils/base-response";
 import jwt from "jsonwebtoken";
+import logService from "../services/log.service";
+import logger from "../utils/logger";
 
 export function validateData(schema: z.ZodObject<any, any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -39,12 +40,12 @@ export function authenticateJWT(
   }
   const token = req.header("Authorization")?.split(" ")[1];
   if (token) {
-    jwt.verify(token, secret_key, (err, user) => {
+    jwt.verify(token, secret_key, (err, payload) => {
       if (err) {
         sendErrorResponse(res, "invalid token", 401);
         return;
       }
-      req.user = user;
+      req.user = payload;
       next();
     });
   } else {
@@ -52,17 +53,23 @@ export function authenticateJWT(
   }
 }
 
-export async function logRequest(
+export async function storeLogRequest(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    await pool.execute("INSERT INTO request_logs (route) VALUES (?)", [
-      req.path,
-    ]);
+    logService.storeLog(req.path);
   } catch (error) {
     sendErrorResponse(res, "failed to save log");
   }
+  next();
+}
+
+export function logging(req: Request, res: Response, next: NextFunction) {
+  logger.info(`${req.method} ${req.url} ${req.path}`);
+  res.on("finish", () => {
+    logger.info(`${req.method} ${res.statusCode} ${req.url}`);
+  });
   next();
 }

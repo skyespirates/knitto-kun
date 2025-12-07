@@ -39,8 +39,20 @@ async function invalidate(id: number) {
   }
 }
 
+async function cleanupExpiredAndUsedOTP() {
+  try {
+    await pool.execute(
+      "DELETE FROM otp_codes WHERE used = 1 OR expires_at < NOW()"
+    );
+  } catch (error) {
+    logger.error(error);
+    throw error;
+  }
+}
+
 export default {
   create,
   check,
   invalidate,
+  cleanupExpiredAndUsedOTP,
 };

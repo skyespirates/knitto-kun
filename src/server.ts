@@ -1,153 +1,47 @@
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import logger from "./utils/logger";
-import jwt from "jsonwebtoken";
 import authRoutes from "./routes/auth";
-import { sendErrorResponse, sendSuccessResponse } from "./utils/base-response";
-import poll from "./infra/db";
-import { Counter, OTP, RequestPerHour, User } from "./types";
-import client from "./utils/axios";
+import runnerRoutes from "./routes/runner.route";
+import movieRoutes from "./routes/movie.route";
+import requestRoutes from "./routes/request.route";
+import protectedRoutes from "./routes/protected.route";
 import cron from "node-cron";
-import { logRequest, authenticateJWT } from "./middlewares";
+import { storeLogRequest, authenticateJWT, logging } from "./middlewares";
+import otpService from "./services/otp.service";
+import { JwtPayload } from "jsonwebtoken";
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 8080;
 
-app.use((req: Request, res: Response, next: NextFunction) => {
-  logger.info(`${req.method} ${req.url} ${req.path}`);
-  res.on("finish", () => {
-    logger.info(`${req.method} ${res.statusCode} ${req.url}`);
-  });
-  next();
-});
+app.use(logging);
 app.use(express.json());
-app.use(logRequest);
+app.use(storeLogRequest);
 
+// #1 autentikasi dengan 2 metode login, basic dan otp
 app.use("/auth", authRoutes);
 
-if (!process.env.JWT_SECRET) {
-  throw new Error("Missing environment variable: JWT_SECRET");
-}
+// #2 running number
+app.use("/runner", runnerRoutes);
 
-const secretKey = process.env.JWT_SECRET;
+// #3 integrasi dengan API eksternal
+app.use("/movies", movieRoutes);
 
-// Middleware to verify JWT
+// #7 data laporan jumlah request user per jam
+app.use("/rph", requestRoutes);
 
-// Login route to generate JWT
-app.post("/login", (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  // This is a mock user authentication
-  if (username === "user" && password === "password") {
-    const user = { username };
-    const token = jwt.sign(user, secretKey, { expiresIn: "1h" });
-    res.json({ token });
-  } else {
-    res.sendStatus(401);
-  }
-});
+app.use("/protected", authenticateJWT, protectedRoutes);
 
 app.get("/", (req: Request, res: Response) => {
-  const data = {
-    message: "Hello, world!",
-  };
-  res.json(data);
+  res.send("Hello, World!");
 });
 
-// Protect the /api/items route with JWT authentication
-app.get("/api/items", authenticateJWT, (req: Request, res: Response) => {
-  const data = [
-    { id: 1, name: "item1" },
-    { id: 2, name: "item2" },
-    { id: 3, name: "item3" },
-  ];
-  res.json(data);
-});
-
-// Protect the /api/items POST route with JWT authentication
-app.post("/api/items", authenticateJWT, (req: Request, res: Response) => {
-  const newItem = req.body.item;
-  res.status(201).json({ message: "Item created", item: newItem });
-});
-
-app.get("/runner", async (req, res) => {
-  const con = await poll.getConnection();
-  try {
-    await con.beginTransaction();
-
-    const [counters] = await con.execute<Counter[]>(
-      "SELECT current FROM counters WHERE name = ? FOR UPDATE",
-      ["invoice"]
-    );
-
-    const lastNumber = counters[0].current;
-    const nextNumber = lastNumber + 1;
-
-    await con.execute("UPDATE counters SET current = ? WHERE name = ?", [
-      nextNumber,
-      "invoice",
-    ]);
-
-    const code = nextNumber.toString().padStart(4, "0");
-    const uniqueCode = `INV-${code}`;
-
-    await con.execute("INSERT INTO runner (code) VALUES (?)", [uniqueCode]);
-
-    await con.commit();
-    sendSuccessResponse(res, "code generated successfully", {
-      code: uniqueCode,
-    });
-  } catch (error) {
-    sendErrorResponse(res, "failed to generate runner");
-  } finally {
-    con.release();
-  }
-});
-
-app.get("/movies", async (req, res) => {
-  try {
-    const result = await client.get("/discover/movie", {
-      params: {
-        include_adult: false,
-        include_video: false,
-        language: "en-US",
-        page: 2,
-        sort_by: "popularity.desc",
-      },
-    });
-    sendSuccessResponse(res, "success", {
-      ...result.data,
-    });
-  } catch (error) {
-    logger.error(error);
-    sendErrorResponse(res, "error");
-  }
-});
-
-app.get("/request-per-hour", async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00') AS hour,
-        COUNT(*) AS total_requests
-      FROM request_logs
-      GROUP BY hour
-      ORDER BY hour DESC
-    `;
-    const [rows] = await poll.execute<RequestPerHour[]>(query);
-    sendSuccessResponse(res, "request per hour", { rows });
-  } catch (error) {
-    sendErrorResponse(res, "an error occured");
-  }
-});
-
-cron.schedule("* * * * *", () => {
-  logger.info("hello, world!");
-});
-
-// Middleware to log errors
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  logger.error(err.message);
-  res.status(500).send("Something went wrong!");
+/*
+  #5 scheduling task
+  Hapus semua kode otp yg expired setiap senin jam 1 malam
+*/
+cron.schedule("* 1 * * 1", async () => {
+  await otpService.cleanupExpiredAndUsedOTP();
 });
 
 app.listen(port, () => {
@@ -157,7 +51,7 @@ app.listen(port, () => {
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: string | JwtPayload;
     }
   }
 }
