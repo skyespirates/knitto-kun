@@ -7,7 +7,7 @@ async function getCounter(
   name: string
 ): Promise<Counter | null> {
   try {
-    const [rows] = await conn.execute<Counter[]>(
+    const [rows] = await conn.query<Counter[]>(
       "SELECT current FROM counters WHERE name = ? FOR UPDATE",
       [name]
     );
@@ -27,7 +27,7 @@ async function increaseCounter(
   name: string
 ) {
   try {
-    await conn.execute("UPDATE counters SET current = ? WHERE name = ?", [
+    await conn.query("UPDATE counters SET current = ? WHERE name = ?", [
       count,
       name,
     ]);
@@ -38,7 +38,7 @@ async function increaseCounter(
 }
 async function setUniqueCode(conn: PoolConnection, uniqueCode: string) {
   try {
-    await conn.execute("INSERT INTO runner (code) VALUES (?)", [uniqueCode]);
+    await conn.query("INSERT INTO runner (code) VALUES (?)", [uniqueCode]);
   } catch (error) {
     logger.error(error);
     throw error;

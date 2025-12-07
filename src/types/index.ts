@@ -28,3 +28,13 @@ export interface TokenPayload {
   id: number;
   email: string;
 }
+
+export interface Account {
+  id: string;
+  name: string;
+  balance: number;
+}
+
+export interface Balance extends RowDataPacket {
+  balance: number;
+}

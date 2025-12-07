@@ -14,3 +14,13 @@ export const userLoginSchema = z.object({
 export const itemSchema = z.object({
   name: z.string(),
 });
+
+export const transferSchema = z.object({
+  senderId: z.string(),
+  receiverId: z.string(),
+  amount: z.number(),
+});
+
+export const newAccountSchema = z.object({
+  name: z.string(),
+});

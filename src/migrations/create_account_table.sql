@@ -1,0 +1,5 @@
+CREATE TABLE accounts (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    balance INT DEFAULT 0
+);

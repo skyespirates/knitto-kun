@@ -30,6 +30,7 @@ async function generateRunnerCode(req: Request, res: Response) {
       code: uniqueCode,
     });
   } catch (error) {
+    await conn.rollback();
     logger.error(error);
     sendErrorResponse(res, "failed to generate runner");
   } finally {

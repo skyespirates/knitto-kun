@@ -1,15 +1,19 @@
 import "dotenv/config";
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response } from "express";
 import logger from "./utils/logger";
+import cron from "node-cron";
+import { storeLogRequest, authenticateJWT, logging } from "./middlewares";
+import { JwtPayload } from "jsonwebtoken";
+import otpService from "./services/otp.service";
+
+// routes
 import authRoutes from "./routes/auth";
 import runnerRoutes from "./routes/runner.route";
 import movieRoutes from "./routes/movie.route";
 import requestRoutes from "./routes/request.route";
 import protectedRoutes from "./routes/protected.route";
-import cron from "node-cron";
-import { storeLogRequest, authenticateJWT, logging } from "./middlewares";
-import otpService from "./services/otp.service";
-import { JwtPayload } from "jsonwebtoken";
+import accountRoutes from "./routes/account.route";
+import transferRoutes from "./routes/transfer.route";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -26,6 +30,11 @@ app.use("/runner", runnerRoutes);
 
 // #3 integrasi dengan API eksternal
 app.use("/movies", movieRoutes);
+
+// #6 endpoint dengan lebih dari 2 query
+app.use("/transfer", transferRoutes);
+
+app.use("/account", accountRoutes);
 
 // #7 data laporan jumlah request user per jam
 app.use("/rph", requestRoutes);
