@@ -6,7 +6,7 @@ if (!process.env.ACCESS_TOKEN) {
 
 const options: CreateAxiosDefaults = {
   baseURL: "https://api.themoviedb.org/3",
-  timeout: 1000,
+  timeout: 10000,
   headers: {
     Authorization: `Bearer ${process.env.ACCESS_TOKEN}`,
   },

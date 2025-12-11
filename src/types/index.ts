@@ -38,3 +38,18 @@ export interface Account {
 export interface Balance extends RowDataPacket {
   balance: number;
 }
+
+export interface Item {
+  id_product: number;
+  name: string;
+  price: number;
+  qty: number;
+}
+
+export interface OrderPayload {
+  address: string;
+  payment_type: string;
+  items: Item[];
+}
+
+export interface Order {}
